@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { AppPage } from "@/components/app-page";
+import { DashboardReminders } from "@/components/dashboard-reminders";
 import { OutfitBuilder } from "@/components/outfit-builder";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClosetImageUrl } from "@/lib/supabase/closet-image";
@@ -9,7 +10,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 
 export const dynamic = "force-dynamic";
-type OutfitSourceItem = Pick<Database["public"]["Tables"]["closet_items"]["Row"], "id" | "category" | "dominant_color" | "color_family" | "vibe_tag" | "ai_description" | "image_url">;
+type OutfitSourceItem = Pick<Database["public"]["Tables"]["closet_items"]["Row"], "id" | "category" | "dominant_color" | "color_family" | "vibe_tag" | "ai_description" | "image_url" | "last_worn_date" | "created_at">;
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const { anchor, message, error: actionError } = await searchParams;
@@ -29,7 +30,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     vibe_tag: "casual" | "streetwear" | "smart/formal" | "lounge/home" | null;
     ai_description: string | null;
     imageSrc: string | null;
+    last_worn_date: string | null;
+    created_at: string;
   }> = [];
+  let laundryCount = 0;
+  let unwornDates: string[] = [];
 
   if (!isSupabaseConfigured()) {
     setupMessage = "Connect Supabase to start your private wardrobe.";
@@ -42,7 +47,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       signedIn = true;
       const { data: profile, error: profileError } = await supabase.from("users").select("real_name").eq("id", user.id).maybeSingle();
       if (profileError) throw new Error(`Could not load profile: ${profileError.message}`);
-      const realName = profile?.real_name || user.email || user.phone || "there";
+      const realName = profile?.real_name || user.email || "there";
       greeting = `Welcome back, ${realName}`;
 
       const [totalResult, cleanTotalResult] = await Promise.all([
@@ -53,11 +58,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       if (cleanTotalResult.error) throw new Error(`Could not load clean item count: ${cleanTotalResult.error.message}`);
       itemCount = totalResult.count ?? 0;
       cleanCount = cleanTotalResult.count ?? 0;
+      laundryCount = itemCount - cleanCount;
       const cleanRows: OutfitSourceItem[] = [];
       for (let from = 0; ; from += 500) {
         const { data, error } = await supabase
           .from("closet_items")
-          .select("id, category, dominant_color, color_family, vibe_tag, ai_description, image_url")
+          .select("id, category, dominant_color, color_family, vibe_tag, ai_description, image_url, last_worn_date, created_at")
           .eq("user_id", user.id)
           .eq("status", "clean")
           .order("created_at", { ascending: false })
@@ -71,6 +77,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         ...item,
         imageSrc: await createClosetImageUrl(supabase, item.image_url),
       })));
+      unwornDates = cleanRows.map((item) => item.last_worn_date ?? item.created_at);
     }
   }
 
@@ -96,6 +103,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       {setupMessage && <p className="setup-notice">{setupMessage} Add the keys in <code>.env.local</code>.</p>}
       {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
+      {signedIn && <DashboardReminders laundryCount={laundryCount} unwornDates={unwornDates} />}
 
       <section className="dashboard-grid" aria-label="Wardrobe overview">
         <div className="primary-panel">

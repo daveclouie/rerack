@@ -1,4 +1,6 @@
 import { AppPage } from "@/components/app-page";
+import { PasswordField } from "@/components/password-field";
+import { SubmitButton } from "@/components/submit-button";
 import { updatePassword } from "@/app/actions/auth";
 
 export default async function ResetPasswordPage({ searchParams }: PageProps<"/reset-password">) {
@@ -9,8 +11,8 @@ export default async function ResetPasswordPage({ searchParams }: PageProps<"/re
         <div className="auth-intro"><p className="eyebrow">ACCOUNT RECOVERY</p><h1>Choose a new password.</h1></div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <form className="auth-form" action={updatePassword}>
-          <div className="field"><label htmlFor="password">New password</label><input id="password" name="password" type="password" autoComplete="new-password" minLength={8} required /></div>
-          <button className="button button-dark" type="submit">Update password</button>
+          <PasswordField id="password" label="New password" autoComplete="new-password" />
+          <SubmitButton className="button button-dark" pendingLabel="Updating password…">Update password</SubmitButton>
         </form>
       </section>
     </AppPage>

@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
-import { createShopListing, deleteClosetItem, toggleLaundry } from "@/app/actions/closet";
+import { createShopListing, deleteClosetItem, setListingContactVisibility, toggleLaundry } from "@/app/actions/closet";
+import { SubmitButton } from "@/components/submit-button";
 import type { ColorFamily, OutfitVibe } from "@/lib/supabase/database.types";
 
 export type ArchiveItem = {
@@ -20,6 +21,7 @@ export type ArchiveItem = {
   last_worn_date: string | null;
   created_at: string;
   isListed: boolean;
+  contactVisible: boolean;
 };
 
 const categories = ["All", "shorts", "pants", "joggers", "longsleeves", "t-shirts", "outerwear", "footwear"];
@@ -36,7 +38,7 @@ function isDustCollector(lastWornDate: string | null) {
   return Number.isFinite(lastWorn) && lastWorn < cutoff;
 }
 
-export function ClosetArchive({ items }: { items: ArchiveItem[] }) {
+export function ClosetArchive({ items, contactEmail }: { items: ArchiveItem[]; contactEmail: string | null }) {
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState<"all" | "clean" | "laundry">("all");
   const [search, setSearch] = useState("");
@@ -71,7 +73,7 @@ export function ClosetArchive({ items }: { items: ArchiveItem[] }) {
 
       {filtered.length ? (
         <div className="closet-grid">
-          {filtered.map((item) => <ClosetCard item={item} key={item.id} />)}
+          {filtered.map((item) => <ClosetCard item={item} contactEmail={contactEmail} key={item.id} />)}
         </div>
       ) : (
         <div className="archive-empty"><p className="eyebrow">NO MATCHES</p><h2>{items.length ? "Nothing in this view." : "Your archive starts here."}</h2><p>{items.length ? "Try another filter or search term." : "Add a clear photo to keep your pieces in circulation."}</p>{!items.length && <Link className="text-link" href="/closet/add">Add the first item <span aria-hidden="true">→</span></Link>}</div>
@@ -80,7 +82,7 @@ export function ClosetArchive({ items }: { items: ArchiveItem[] }) {
   );
 }
 
-function ClosetCard({ item }: { item: ArchiveItem }) {
+function ClosetCard({ item, contactEmail }: { item: ArchiveItem; contactEmail: string | null }) {
   return (
     <article className={`closet-card${item.status === "laundry" ? " is-laundry" : ""}`}>
       <div className="closet-image">
@@ -94,17 +96,31 @@ function ClosetCard({ item }: { item: ArchiveItem }) {
       </div>
       <div className="closet-card-actions">
         <Link className="text-link" href={`/dashboard?anchor=${encodeURIComponent(item.id)}`}>Build Outfit With This</Link>
-        <form action={toggleLaundry}><input type="hidden" name="item_id" value={item.id} /><button className="quiet-action" type="submit">{item.status === "clean" ? "Toggle Laundry" : "Mark Clean"}</button></form>
-        {item.isListed ? <span className="listed-label">Listed on shop</span> : <ListingDialog item={item} />}
+        <form action={toggleLaundry}><input type="hidden" name="item_id" value={item.id} /><SubmitButton className="quiet-action" pendingLabel="Updating…">{item.status === "clean" ? "Toggle Laundry" : "Mark Clean"}</SubmitButton></form>
+        {item.isListed ? <ListingVisibility item={item} /> : <ListingDialog item={item} contactEmail={contactEmail} />}
         <DeleteItemDialog item={item} />
       </div>
     </article>
   );
 }
 
-function ListingDialog({ item }: { item: ArchiveItem }) {
+function ListingVisibility({ item }: { item: ArchiveItem }) {
+  return (
+    <form action={setListingContactVisibility} className="listing-visibility-form">
+      <input type="hidden" name="item_id" value={item.id} />
+      <input type="hidden" name="contact_visible" value={item.contactVisible ? "off" : "on"} />
+      <SubmitButton className="quiet-action" pendingLabel="Updating…" aria-pressed={item.contactVisible}>
+        {item.contactVisible ? "Hide contact from listing" : "Show contact on listing"}
+      </SubmitButton>
+      <span className="listed-label">{item.contactVisible ? "Contact visible" : "Contact private"}</span>
+    </form>
+  );
+}
+
+function ListingDialog({ item, contactEmail }: { item: ArchiveItem; contactEmail: string | null }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const description = item.ai_description || `${label(item.category)} from my closet`;
+  const [contactVisible, setContactVisible] = useState(false);
 
   return (
     <>
@@ -124,8 +140,9 @@ function ListingDialog({ item }: { item: ArchiveItem }) {
             <div className="field"><label htmlFor={`listing-price-${item.id}`}>Price</label><input id={`listing-price-${item.id}`} name="price" type="number" min="0" step="0.01" required /></div>
           </div>
           <div className="field"><label htmlFor={`listing-issues-${item.id}`}>Issues or flaws</label><textarea id={`listing-issues-${item.id}`} name="issues" placeholder="None, or describe visible wear" maxLength={500} /></div>
-          <label className="consent-row"><input type="checkbox" name="contact_visible" required /><span>Show my email and/or phone number on this public listing so buyers can contact me directly.</span></label>
-          <div className="page-actions"><button className="button button-dark" type="submit">Publish listing</button><button className="button button-quiet" type="button" onClick={() => dialogRef.current?.close()}>Cancel</button></div>
+          <label className="consent-row"><input type="checkbox" name="contact_visible" checked={contactVisible} onChange={(event) => setContactVisible(event.target.checked)} /><span>Show my email address on this public listing. You can change this later.</span></label>
+          {contactVisible && <div className="public-contact-preview"><p className="eyebrow">PUBLIC CONTACT PREVIEW</p><p>Email <strong>{contactEmail ?? "Not set"}</strong></p></div>}
+          <div className="page-actions"><SubmitButton className="button button-dark" pendingLabel="Publishing…">Publish listing</SubmitButton><button className="button button-quiet" type="button" onClick={() => dialogRef.current?.close()}>Cancel</button></div>
         </form>
       </dialog>
     </>
@@ -143,7 +160,7 @@ function DeleteItemDialog({ item }: { item: ArchiveItem }) {
         <p className="form-hint">The closet photo and any shop listing will also be removed.</p>
         <form className="page-actions" action={deleteClosetItem}>
           <input type="hidden" name="item_id" value={item.id} />
-          <button className="button button-dark" type="submit">Delete Item</button>
+          <SubmitButton className="button button-dark" pendingLabel="Deleting…">Delete Item</SubmitButton>
           <button className="button button-quiet" type="button" onClick={() => dialogRef.current?.close()}>Keep item</button>
         </form>
       </dialog>

@@ -6,6 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ReRack — a wardrobe in better circulation",
   description: "A considered digital closet and clothing marketplace.",
+  icons: { icon: "/rerack-mark.png" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

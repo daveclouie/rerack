@@ -44,14 +44,21 @@ export default async function ClosetPage({ searchParams }: PageProps<"/closet">)
 
   const { data: listings, error: listingsError } = await supabase
     .from("shop_listings")
-    .select("item_id")
+    .select("item_id, contact_visible")
     .eq("seller_id", user.id);
   if (listingsError) throw new Error(`Could not load listing status: ${listingsError.message}`);
-  const listedIds = new Set(listings.map((listing) => listing.item_id));
+  const { data: profile, error: profileError } = await supabase
+    .from("users")
+    .select("email")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profileError) throw new Error(`Could not load listing contact preview: ${profileError.message}`);
+  const listingByItem = new Map(listings.map((listing) => [listing.item_id, listing.contact_visible]));
   const items: ArchiveItem[] = await Promise.all(rows.map(async (item) => ({
     ...item,
     imageSrc: await createClosetImageUrl(supabase, item.image_url),
-    isListed: listedIds.has(item.id),
+    isListed: listingByItem.has(item.id),
+    contactVisible: listingByItem.get(item.id) ?? false,
   })));
 
   return (
@@ -59,7 +66,7 @@ export default async function ClosetPage({ searchParams }: PageProps<"/closet">)
       <ArchiveIntro />
       {formError && <p className="form-error" role="alert">{formError}</p>}
       {message && <p className="setup-notice" role="status">{message}</p>}
-      <ClosetArchive items={items} />
+      <ClosetArchive items={items} contactEmail={profile?.email ?? null} />
     </AppPage>
   );
 }

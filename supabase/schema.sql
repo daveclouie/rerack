@@ -6,11 +6,10 @@ create table public.users (
   id uuid primary key references auth.users (id) on delete cascade,
   real_name text not null check (length(btrim(real_name)) between 1 and 100),
   username text not null unique check (username = lower(username) and username ~ '^[a-z0-9_]{3,24}$'),
-  email text unique check (email is null or email = lower(email)),
+  email text not null unique check (email = lower(email)),
   phone_number text unique,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint users_contact_required check (email is not null or phone_number is not null)
+  updated_at timestamptz not null default now()
 );
 
 create table public.closet_items (
@@ -53,6 +52,13 @@ create table public.shop_listings (
   constraint shop_listing_contact_visibility check (
     contact_visible or (contact_email is null and contact_phone is null)
   )
+);
+
+create table public.image_processing_usage (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  usage_date date not null,
+  request_count integer not null default 0 check (request_count between 0 and 20),
+  primary key (user_id, usage_date)
 );
 
 create index shop_listings_available_idx on public.shop_listings (created_at desc) where is_sold = false;
@@ -105,11 +111,11 @@ begin
   new.image_url := closet_item.image_url;
 
   if new.contact_visible then
-    if seller_profile.email is null and seller_profile.phone_number is null then
-      raise exception 'A seller contact method is required to publish contact details';
+    if seller_profile.email is null then
+      raise exception 'A seller email is required to publish contact details';
     end if;
     new.contact_email := seller_profile.email;
-    new.contact_phone := seller_profile.phone_number;
+    new.contact_phone := null;
   else
     new.contact_email := null;
     new.contact_phone := null;
@@ -120,7 +126,7 @@ end;
 $$;
 
 create trigger shop_listings_set_snapshot
-before insert or update of item_id, seller_id, contact_visible on public.shop_listings
+before insert or update on public.shop_listings
 for each row execute function public.set_shop_listing_snapshot();
 
 create or replace function public.refresh_seller_listing_snapshots()
@@ -133,14 +139,14 @@ begin
   update public.shop_listings
   set seller_username = new.username,
       contact_email = case when contact_visible then new.email else null end,
-      contact_phone = case when contact_visible then new.phone_number else null end
+      contact_phone = null
   where seller_id = new.id;
   return new;
 end;
 $$;
 
 create trigger users_refresh_listing_snapshots
-after update of username, email, phone_number on public.users
+after update of username, email on public.users
 for each row execute function public.refresh_seller_listing_snapshots();
 
 create or replace function public.handle_new_auth_user()
@@ -152,27 +158,27 @@ as $$
 declare
   profile_name text;
   profile_username text;
+  profile_email text;
 begin
   profile_name := nullif(btrim(new.raw_user_meta_data ->> 'real_name'), '');
   profile_username := lower(nullif(btrim(new.raw_user_meta_data ->> 'username'), ''));
+  profile_email := lower(coalesce(nullif(new.raw_user_meta_data ->> 'email', ''), new.email));
 
-  if profile_name is null or profile_username is null then
-    raise exception 'Profile name and username are required';
+  if profile_name is null or profile_username is null or profile_email is null then
+    raise exception 'Profile name, username and email are required';
   end if;
 
-  insert into public.users (id, real_name, username, email, phone_number)
+  insert into public.users (id, real_name, username, email)
   values (
     new.id,
     profile_name,
     profile_username,
-    coalesce(nullif(new.raw_user_meta_data ->> 'email', ''), new.email),
-    coalesce(nullif(new.raw_user_meta_data ->> 'phone_number', ''), new.phone)
+    profile_email
   )
   on conflict (id) do update
   set real_name = excluded.real_name,
       username = excluded.username,
-      email = excluded.email,
-      phone_number = excluded.phone_number;
+  email = excluded.email;
 
   return new;
 end;
@@ -181,6 +187,24 @@ $$;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_auth_user();
+
+create or replace function public.sync_auth_user_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.users
+  set email = lower(coalesce(new.email, email))
+  where id = new.id;
+  return new;
+end;
+$$;
+
+create trigger auth_user_sync_profile
+after update of email on auth.users
+for each row execute function public.sync_auth_user_profile();
 
 create or replace function public.mark_items_worn(p_item_ids uuid[], p_worn_on date)
 returns setof public.closet_items
@@ -200,9 +224,40 @@ $$;
 revoke all on function public.mark_items_worn(uuid[], date) from public, anon;
 grant execute on function public.mark_items_worn(uuid[], date) to authenticated;
 
+create or replace function public.consume_image_processing_quota()
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  requester_id uuid := auth.uid();
+  accepted_count integer;
+begin
+  if requester_id is null then
+    return false;
+  end if;
+
+  insert into public.image_processing_usage as existing_usage (user_id, usage_date, request_count)
+  values (requester_id, (now() at time zone 'utc')::date, 1)
+  on conflict (user_id, usage_date) do update
+  set request_count = existing_usage.request_count + 1
+  where existing_usage.request_count < 20
+  returning request_count into accepted_count;
+
+  return accepted_count is not null;
+end;
+$$;
+
+revoke all on function public.consume_image_processing_quota() from public, anon;
+grant execute on function public.consume_image_processing_quota() to authenticated;
+
 alter table public.users enable row level security;
 alter table public.closet_items enable row level security;
 alter table public.shop_listings enable row level security;
+alter table public.image_processing_usage enable row level security;
+
+revoke all on public.image_processing_usage from public, anon, authenticated;
 
 create policy "Users can view their own profile"
 on public.users for select to authenticated
@@ -212,6 +267,9 @@ create policy "Users can update their own profile"
 on public.users for update to authenticated
 using ((select auth.uid()) = id)
 with check ((select auth.uid()) = id);
+
+revoke update on public.users from authenticated;
+grant update (real_name, username) on public.users to authenticated;
 
 create policy "Users can manage their own closet"
 on public.closet_items for all to authenticated

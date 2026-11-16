@@ -30,6 +30,10 @@ export async function addClosetItem(formData: FormData) {
   if (file.size > 10 * 1024 * 1024) showActionError("/closet/add", "Images must be smaller than 10 MB.");
 
   const { supabase, user } = await getAccount();
+  const { data: quotaAvailable, error: quotaError } = await supabase.rpc("consume_image_processing_quota");
+  if (quotaError) throw new Error(`Could not check image-processing limit: ${quotaError.message}`);
+  if (!quotaAvailable) showActionError("/closet/add", "Daily image-processing limit reached. Try again tomorrow.");
+
   let processed: Awaited<ReturnType<typeof processClosetImage>>;
   try {
     processed = await processClosetImage(Buffer.from(await file.arrayBuffer()), file.type);
@@ -133,7 +137,7 @@ export async function createShopListing(formData: FormData) {
     showActionError("/closet", "Size measurements must be between 0 and 99,999.99 cm.");
   }
   if (!Number.isFinite(price) || price < 0 || price > 99999999.99) showActionError("/closet", "Enter a price between $0 and $99,999,999.99.");
-  if (formData.get("contact_visible") !== "on") showActionError("/closet", "Consent to sharing your contact details is required to list an item.");
+  const contactVisible = formData.get("contact_visible") === "on";
 
   const { supabase, user } = await getAccount();
   const { data: item, error: itemError } = await supabase
@@ -163,10 +167,26 @@ export async function createShopListing(formData: FormData) {
     price,
     description,
     issues: issues || null,
-    contact_visible: true,
+    contact_visible: contactVisible,
   });
   if (error) showActionError("/closet", `Could not create listing: ${error.message}`);
   redirect("/closet?message=Your item is listed in the shop.");
+}
+
+export async function setListingContactVisibility(formData: FormData) {
+  const itemId = value(formData, "item_id");
+  if (!uuidPattern.test(itemId)) showActionError("/closet", "A valid closet item is required.");
+  const { supabase, user } = await getAccount();
+  const { data: listing, error } = await supabase
+    .from("shop_listings")
+    .update({ contact_visible: formData.get("contact_visible") === "on" })
+    .eq("item_id", itemId)
+    .eq("seller_id", user.id)
+    .select("id, contact_visible")
+    .maybeSingle();
+  if (error) showActionError("/closet", `Could not update listing privacy: ${error.message}`);
+  if (!listing) showActionError("/closet", "Shop listing not found.");
+  redirect(`/closet?message=${encodeURIComponent(listing.contact_visible ? "Contact details are visible on this listing." : "Contact details are hidden on this listing.")}`);
 }
 
 export async function wearOutfit(formData: FormData) {

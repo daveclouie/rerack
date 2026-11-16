@@ -13,7 +13,6 @@ export type ShopItem = {
   image_url: string | null;
   imageSrc: string | null;
   contact_email: string | null;
-  contact_phone: string | null;
   length: number | null;
   width: number | null;
   price: number;
@@ -99,8 +98,7 @@ export function ShopExplorer({ items }: { items: ShopItem[] }) {
                 <div className="shop-contact">
                   <p className="eyebrow">CONTACT SELLER</p>
                   {selected.contact_email && <a className="text-link" href={`mailto:${selected.contact_email}`}>{selected.contact_email}</a>}
-                  {selected.contact_phone && <a className="text-link" href={`tel:${selected.contact_phone}`}>{selected.contact_phone}</a>}
-                  {!selected.contact_email && !selected.contact_phone && <p className="form-hint">The seller has not shared contact details.</p>}
+                  {!selected.contact_email && <p className="form-hint">The seller has not shared contact details.</p>}
                 </div>
               </div>
             </div>

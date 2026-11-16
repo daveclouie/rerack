@@ -34,6 +34,23 @@ export type Database = {
         };
         Relationships: [];
       };
+      image_processing_usage: {
+        Row: {
+          user_id: string;
+          usage_date: string;
+          request_count: number;
+        };
+        Insert: {
+          user_id: string;
+          usage_date: string;
+          request_count?: number;
+        };
+        Update: {
+          usage_date?: string;
+          request_count?: number;
+        };
+        Relationships: [];
+      };
       closet_items: {
         Row: {
           id: string;
@@ -161,6 +178,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      consume_image_processing_quota: {
+        Args: Record<PropertyKey, never>;
+        Returns: boolean;
+      };
       mark_items_worn: {
         Args: { p_item_ids: string[]; p_worn_on: string };
         Returns: Database["public"]["Tables"]["closet_items"]["Row"][];

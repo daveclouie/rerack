@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { wearOutfit } from "@/app/actions/closet";
+import { SubmitButton } from "@/components/submit-button";
 import { generateOutfit, slotForCategory, type OutfitAssignments, type OutfitItem, type OutfitSlot, type OutfitVibeFilter } from "@/lib/outfits/generator";
 
 type ClosetPiece = OutfitItem & {
@@ -147,7 +148,7 @@ export function OutfitBuilder({ items, anchorId, message }: { items: ClosetPiece
               <button className="button button-dark" type="button" onClick={generate}>Generate Daily Outfit</button>
               <form action={wearOutfit}>
                 {selectedIds.map((id) => <input type="hidden" name="item_id" value={id} key={id} />)}
-                <button className="button button-quiet" type="submit" disabled={selectedIds.length === 0}>Wear This Today</button>
+                <SubmitButton className="button button-quiet" pendingLabel="Saving outfit…" disabled={selectedIds.length === 0}>Wear This Today</SubmitButton>
               </form>
             </div>
           </div>
