@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useClientPreferences } from "@/lib/client-preferences";
 
-export function DashboardReminders({ laundryCount, unwornDates }: { laundryCount: number; unwornDates: string[] }) {
+export function ClosetReminders({ laundryCount, unwornDates }: { laundryCount: number; unwornDates: string[] }) {
   const { preferences } = useClientPreferences();
   const [unwornCount, setUnwornCount] = useState(0);
   useEffect(() => {

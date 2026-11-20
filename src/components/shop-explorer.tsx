@@ -75,7 +75,7 @@ export function ShopExplorer({ items }: { items: ShopItem[] }) {
               <span className="shop-card-image">
                 {item.imageSrc ? <Image src={item.imageSrc} alt="" fill sizes="(max-width: 600px) 48vw, (max-width: 1000px) 32vw, 240px" unoptimized /> : <span className="image-missing">Photo unavailable</span>}
               </span>
-              <span className="shop-card-seller">@{item.seller_username}</span>
+              <span className="shop-card-meta"><span>@{item.seller_username} · {item.category}</span><strong>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.price)}</strong></span>
             </button>
           ))}
         </div>
@@ -97,7 +97,7 @@ export function ShopExplorer({ items }: { items: ShopItem[] }) {
                 <div className="content-row"><span className="content-label">Issues / flaws</span><span className="content-value">{selected.issues || "None noted"}</span></div>
                 <div className="shop-contact">
                   <p className="eyebrow">CONTACT SELLER</p>
-                  {selected.contact_email && <a className="text-link" href={`mailto:${selected.contact_email}`}>{selected.contact_email}</a>}
+                  {selected.contact_email && <a className="text-link" href={`mailto:${selected.contact_email}`}>Email seller: {selected.contact_email}</a>}
                   {!selected.contact_email && <p className="form-hint">The seller has not shared contact details.</p>}
                 </div>
               </div>

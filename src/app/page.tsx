@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { AppPage } from "@/components/app-page";
+import { InstallAppButton } from "@/components/install-app-button";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const { message } = await searchParams;
@@ -15,6 +16,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         <div className="page-actions">
           <Link className="button button-dark" href="/signup">Create your account</Link>
           <Link className="button button-quiet" href="/login">Log in</Link>
+          <InstallAppButton />
         </div>
       </section>
       <section className="landing-notes" aria-label="ReRack features">

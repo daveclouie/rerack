@@ -1,7 +1,19 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 export type ClothingCategory = "shorts" | "pants" | "joggers" | "longsleeves" | "t-shirts" | "outerwear" | "footwear";
 export type ColorFamily = "neutral" | "warm" | "cool" | "earth";
-export type OutfitVibe = "casual" | "streetwear" | "smart/formal" | "lounge/home";
+export type OutfitVibe =
+  | "casual"
+  | "streetwear"
+  | "smart/formal"
+  | "lounge/home"
+  | "y2k"
+  | "old money"
+  | "semi-formal"
+  | "smart casual"
+  | "sporty"
+  | "preppy"
+  | "minimalist"
+  | "vintage";
 
 export type Database = {
   public: {

@@ -18,7 +18,7 @@ create table public.closet_items (
   category text not null check (category in ('shorts', 'pants', 'joggers', 'longsleeves', 't-shirts', 'outerwear', 'footwear')),
   dominant_color text,
   color_family text check (color_family is null or color_family in ('neutral', 'warm', 'cool', 'earth')),
-  vibe_tag text check (vibe_tag is null or vibe_tag in ('casual', 'streetwear', 'smart/formal', 'lounge/home')),
+  vibe_tag text,
   ai_description text,
   image_url text,
   status public.closet_item_status not null default 'clean',
@@ -27,6 +27,14 @@ create table public.closet_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.closet_items
+  add constraint closet_items_vibe_tag_check check (
+    vibe_tag is null or vibe_tag in (
+      'casual', 'streetwear', 'smart/formal', 'lounge/home', 'y2k', 'old money',
+      'semi-formal', 'smart casual', 'sporty', 'preppy', 'minimalist', 'vintage'
+    )
+  );
 
 create index closet_items_user_created_idx on public.closet_items (user_id, created_at desc);
 create index closet_items_user_status_idx on public.closet_items (user_id, status);
@@ -312,6 +320,18 @@ on conflict (id) do nothing;
 create policy "Users can view their own closet images"
 on storage.objects for select to authenticated
 using (bucket_id = 'closet-images' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+create policy "Anyone can view images of active shop listings"
+on storage.objects for select to anon, authenticated
+using (
+  bucket_id = 'closet-images'
+  and exists (
+    select 1
+    from public.shop_listings
+    where shop_listings.image_url = storage.objects.name
+      and shop_listings.is_sold = false
+  )
+);
 
 create policy "Users can upload their own closet images"
 on storage.objects for insert to authenticated

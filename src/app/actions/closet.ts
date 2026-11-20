@@ -3,10 +3,13 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { isAuthSessionMissingError } from "@supabase/supabase-js";
+import { createClosetImageUrl } from "@/lib/supabase/closet-image";
+import type { Database } from "@/lib/supabase/database.types";
 import { processClosetImage } from "@/services/aiClosetProcessor";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type CleanOutfitRow = Pick<Database["public"]["Tables"]["closet_items"]["Row"], "id" | "category" | "dominant_color" | "color_family" | "vibe_tag" | "ai_description" | "image_url" | "last_worn_date" | "created_at">;
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -22,6 +25,35 @@ async function getAccount() {
   if (error && !isAuthSessionMissingError(error)) throw new Error(`Could not verify session: ${error.message}`);
   if (!user) redirect("/login");
   return { supabase, user };
+}
+
+export async function getCleanOutfitItems() {
+  const { supabase, user } = await getAccount();
+  const rows: CleanOutfitRow[] = [];
+  for (let from = 0; ; from += 500) {
+    const { data, error } = await supabase
+      .from("closet_items")
+      .select("id, category, dominant_color, color_family, vibe_tag, ai_description, image_url, last_worn_date, created_at")
+      .eq("user_id", user.id)
+      .eq("status", "clean")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(from, from + 499);
+    if (error) throw new Error(`Could not load clean outfit items: ${error.message}`);
+    rows.push(...data);
+    if (data.length < 500) break;
+  }
+  return Promise.all(rows.map(async (item) => ({
+    id: item.id,
+    category: item.category,
+    dominant_color: item.dominant_color,
+    color_family: item.color_family,
+    vibe_tag: item.vibe_tag,
+    ai_description: item.ai_description,
+    imageSrc: await createClosetImageUrl(supabase, item.image_url),
+    last_worn_date: item.last_worn_date,
+    created_at: item.created_at,
+  })));
 }
 
 export async function addClosetItem(formData: FormData) {
@@ -42,9 +74,9 @@ export async function addClosetItem(formData: FormData) {
     throw error;
   }
   const { normalizedImage, metadata } = processed;
-  const imagePath = `${user.id}/${randomUUID()}.png`;
+  const imagePath = `${user.id}/${randomUUID()}.jpg`;
   const { error: uploadError } = await supabase.storage.from("closet-images").upload(imagePath, normalizedImage, {
-    contentType: "image/png",
+    contentType: "image/jpeg",
     cacheControl: "3600",
     upsert: false,
   });
@@ -132,7 +164,7 @@ export async function createShopListing(formData: FormData) {
 
   if (!uuidPattern.test(itemId)) showActionError("/closet", "A valid closet item is required.");
   if (!description || description.length > 500) showActionError("/closet", "Add a description of up to 500 characters.");
-  if (issues.length > 500) showActionError("/closet", "Keep issue notes under 500 characters.");
+  if (!issues || issues.length > 500) showActionError("/closet", "Describe any issues, or enter 'No known issues'.");
   if ((length !== null && (!Number.isFinite(length) || length < 0 || length > 99999.99)) || (width !== null && (!Number.isFinite(width) || width < 0 || width > 99999.99))) {
     showActionError("/closet", "Size measurements must be between 0 and 99,999.99 cm.");
   }

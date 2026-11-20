@@ -42,6 +42,7 @@ export function ClosetArchive({ items, contactEmail }: { items: ArchiveItem[]; c
   const [category, setCategory] = useState("All");
   const [status, setStatus] = useState<"all" | "clean" | "laundry">("all");
   const [search, setSearch] = useState("");
+  const cleanCount = items.filter((item) => item.status === "clean").length;
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return items.filter((item) => (
@@ -53,6 +54,11 @@ export function ClosetArchive({ items, contactEmail }: { items: ArchiveItem[]; c
 
   return (
     <section className="archive">
+      <div className="archive-summary" aria-label="Closet summary">
+        <div><strong>{items.length}</strong><span>Pieces in archive</span></div>
+        <div><strong>{cleanCount}</strong><span>Clean and ready</span></div>
+        <div><strong>{items.length - cleanCount}</strong><span>In the laundry</span></div>
+      </div>
       <div className="archive-controls">
         <div className="filter-tabs" role="group" aria-label="Filter by category">
           {categories.map((option) => (
@@ -124,25 +130,25 @@ function ListingDialog({ item, contactEmail }: { item: ArchiveItem; contactEmail
 
   return (
     <>
-      <button className="quiet-action" type="button" onClick={() => dialogRef.current?.showModal()}>List on Shop</button>
+      <button className="quiet-action" type="button" onClick={() => dialogRef.current?.showModal()}>List in built-in shop</button>
       <dialog className="listing-dialog" ref={dialogRef}>
-        <div className="dialog-heading"><div><p className="eyebrow">RE-RACK A PIECE</p><h2>List on the shop</h2></div><button className="dialog-close" type="button" onClick={() => dialogRef.current?.close()} aria-label="Close listing form">Close</button></div>
+        <div className="dialog-heading"><div><p className="eyebrow">RE-RACK A PIECE</p><h2>List in the built-in shop</h2></div><button className="dialog-close" type="button" onClick={() => dialogRef.current?.close()} aria-label="Close listing form">Close</button></div>
         <div className="listing-preview">
           <div className="listing-preview-image">{item.imageSrc && <Image src={item.imageSrc} alt="" fill sizes="72px" unoptimized />}</div>
           <div><strong>{label(item.category)}</strong><p>{description}</p></div>
         </div>
         <form className="listing-form" action={createShopListing}>
           <input type="hidden" name="item_id" value={item.id} />
-          <div className="field"><label htmlFor={`listing-description-${item.id}`}>Description</label><textarea id={`listing-description-${item.id}`} name="description" defaultValue={description} maxLength={500} required /></div>
+          <div className="field"><label htmlFor={`listing-description-${item.id}`}>Description</label><textarea id={`listing-description-${item.id}`} name="description" placeholder={description} maxLength={500} required /></div>
           <div className="measure-fields">
             <div className="field"><label htmlFor={`listing-length-${item.id}`}>Length (cm)</label><input id={`listing-length-${item.id}`} name="length" type="number" min="0" step="0.1" /></div>
             <div className="field"><label htmlFor={`listing-width-${item.id}`}>Width (cm)</label><input id={`listing-width-${item.id}`} name="width" type="number" min="0" step="0.1" /></div>
             <div className="field"><label htmlFor={`listing-price-${item.id}`}>Price</label><input id={`listing-price-${item.id}`} name="price" type="number" min="0" step="0.01" required /></div>
           </div>
-          <div className="field"><label htmlFor={`listing-issues-${item.id}`}>Issues or flaws</label><textarea id={`listing-issues-${item.id}`} name="issues" placeholder="None, or describe visible wear" maxLength={500} /></div>
+          <div className="field"><label htmlFor={`listing-issues-${item.id}`}>Issues or flaws</label><textarea id={`listing-issues-${item.id}`} name="issues" placeholder="Describe any issues, or enter No known issues" maxLength={500} required /></div>
           <label className="consent-row"><input type="checkbox" name="contact_visible" checked={contactVisible} onChange={(event) => setContactVisible(event.target.checked)} /><span>Show my email address on this public listing. You can change this later.</span></label>
           {contactVisible && <div className="public-contact-preview"><p className="eyebrow">PUBLIC CONTACT PREVIEW</p><p>Email <strong>{contactEmail ?? "Not set"}</strong></p></div>}
-          <div className="page-actions"><SubmitButton className="button button-dark" pendingLabel="Publishing…">Publish listing</SubmitButton><button className="button button-quiet" type="button" onClick={() => dialogRef.current?.close()}>Cancel</button></div>
+          <div className="page-actions"><SubmitButton className="button button-dark" pendingLabel="Publishing…">Publish to built-in shop</SubmitButton><button className="button button-quiet" type="button" onClick={() => dialogRef.current?.close()}>Cancel</button></div>
         </form>
       </dialog>
     </>

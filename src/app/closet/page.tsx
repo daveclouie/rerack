@@ -2,6 +2,7 @@ import Link from "next/link";
 import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { AppPage } from "@/components/app-page";
 import { ClosetArchive, type ArchiveItem } from "@/components/closet-archive";
+import { ClosetReminders } from "@/components/closet-reminders";
 import { createClosetImageUrl } from "@/lib/supabase/closet-image";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -60,12 +61,16 @@ export default async function ClosetPage({ searchParams }: PageProps<"/closet">)
     isListed: listingByItem.has(item.id),
     contactVisible: listingByItem.get(item.id) ?? false,
   })));
+  const cleanItems = rows.filter((item) => item.status === "clean");
+  const laundryCount = rows.length - cleanItems.length;
+  const unwornDates = cleanItems.map((item) => item.last_worn_date ?? item.created_at);
 
   return (
     <AppPage>
       <ArchiveIntro />
       {formError && <p className="form-error" role="alert">{formError}</p>}
       {message && <p className="setup-notice" role="status">{message}</p>}
+      <ClosetReminders laundryCount={laundryCount} unwornDates={unwornDates} />
       <ClosetArchive items={items} contactEmail={profile?.email ?? null} />
     </AppPage>
   );

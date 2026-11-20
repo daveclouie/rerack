@@ -1,0 +1,22 @@
+{
+  "name": "ReRack",
+  "short_name": "ReRack",
+  "description": "A considered digital closet and clothing marketplace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBF9F5",
+  "theme_color": "#FBF9F5",
+  "icons": [
+    {
+      "src": "/rerack-install-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/rerack-install-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
